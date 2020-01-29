@@ -19,13 +19,11 @@ class Shapes3D():
 
         env_dims (int): the dimensions of the environment, no object can be outside this dim
 
-        use_egl_plugin (bool): Not used, waiting for fix. set it to true if you want to use the egl plugin to render much
+        use_egl_plugin (bool): set it to true if you want to use the egl plugin to render much
         faster. If not specified it will be used if possible. This pluging helps rendering the
         image without a X11 context in Linux based systems.
     """
     def __init__(self, gui=False, use_egl_plugin=None, env_dim=10):
-        #os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3' # TODO fix #1
-        use_egl_plugin = False # EGL plugin has to be deactivated
 
         if env_dim <= 0:
             raise AttributeError("Ivalid env_dim passed to initialization of Shape3D env")
