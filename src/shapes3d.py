@@ -21,9 +21,10 @@ class Shapes3D():
 
         use_egl_plugin (bool): set it to true if you want to use the egl plugin to render much
         faster. If not specified it will be used if possible. This pluging helps rendering the
-        image without a X11 context in Linux based systems.
+        image without a X11 context in Linux based systems. Warning EGL tends to render un-wanted
+        artifacts such as the axis
     """
-    def __init__(self, gui=False, use_egl_plugin=None, env_dim=10):
+    def __init__(self, gui=False, use_egl_plugin=False, env_dim=10):
 
         if env_dim <= 0:
             raise AttributeError("Ivalid env_dim passed to initialization of Shape3D env")
@@ -38,6 +39,7 @@ class Shapes3D():
             self._egl = pkgutil.get_loader('eglRenderer')
             if self._egl is not None:
                 self.use_egl_plugin = True
+                del os.environ["DISPLAY"]
                 print("Using EGL Plugin to accelerate rendering")
             elif use_egl_plugin:
                 raise ImportError("Cannot load eglRenderer")
@@ -61,10 +63,9 @@ class Shapes3D():
 
             # Loading egl plugin for faster rendering
             if self.use_egl_plugin:
-                print(self._egl.get_filename())
                 self._plugin = p.loadPlugin(self._egl.get_filename(), '_eglRendererPlugin')
 
-            if not self.gui:
+            if self.gui != p.GUI:
                 p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
                 p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
 
@@ -247,7 +248,11 @@ class Shapes3D():
         _, _, img, depth, segmentation = p.getCameraImage(width,
                                                           height,
                                                           viewMatrix=extrinsic,
-                                                          projectionMatrix=intrinsic)
+                                                          projectionMatrix=intrinsic,
+                                                          lightDirection=[0, 0, 10],
+                                                          lightDistance=100,
+                                                          lightColor=[1, 1, 1],
+                                                          shadow=1)
         return img, depth, segmentation
 
     def check_color_orientation(self, color, position, orientation):
