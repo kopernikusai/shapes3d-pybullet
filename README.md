@@ -6,7 +6,7 @@
 
 Shapes3D is a simple 3D environment made up 3D figures. It is an environment for computer vision problems which can spawn different 3D shapes (e.g. spheres or boxes) in a simple 3D world and render the view from any point of view using a pinhole camera model (i.e. intrinsic and extrinsic matrices). This environment resembles the environment from [Neural scene representation and rendering](https://deepmind.com/blog/article/neural-scene-representation-and-rendering) or GQN.
 
-# Instructions
+## Instructions
 
 There are two ways of doing installing this environment, using docker or installing this locally.
 
@@ -14,7 +14,7 @@ There are two ways of doing installing this environment, using docker or install
 
 In the root folder run `pip install -e .`
 
-## B. Docker
+### B. Docker
 
 The use of a docker container is highly recommended if EGL has compatibility issues and you must use EGL. Follow the next steps to have a docker container capable of running this environment. Build the docker container with
 
@@ -34,7 +34,7 @@ Keep in mind that whenever you want to use the GUI of the simulation you have to
 
 After installing the environment you can run the examples inside `examples` folder. for example `python examples/simple_example.py` or `python examples/saver_render.py`
 
-# Functions
+## Functions
 
 To see an example of how to use the environment see `examples/simple_example.py`.
 
@@ -50,7 +50,7 @@ To see an example of how to use the environment see `examples/simple_example.py`
 
 
 
-# Known issues
+## Known issues
 
 * There are certain versions of OpenGL or GLSL which are not compatible with the EGL renderer (to render faster):
     * Simplest: do not use the ELG plugin, set `use_egl_plugin=False` when creating the env.
