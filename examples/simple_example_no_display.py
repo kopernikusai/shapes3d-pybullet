@@ -7,7 +7,7 @@ import time
 def run_example():
     times = []
     dim = 5
-    env = Shapes3D(gui=1, env_dim=dim)
+    env = Shapes3D(gui=0, env_dim=dim)
     env.reset()
 
     env.add_sphere(0.2, [1, 1, 1, 1], [1, 1, 0.2])
