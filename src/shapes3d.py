@@ -277,5 +277,24 @@ class Shapes3D():
         if self.use_egl_plugin:
             p.unloadPlugin(self._plugin)
 
+    def computeProjectionMatrixFOV(self, fov, aspect, nearVal=0.1, farVal=None):
+        """ calls pybullet.computeProjectionMatrixFOV """
+        if farVal is None:
+            farVal = self._env_dim*2
+
+        return p.computeProjectionMatrixFOV(fov=fov,
+                                            aspect=aspect,
+                                            nearVal=nearVal,
+                                            farVal=farVal)
+
+    def computeViewMatrixFromYawPitchRoll(self, cameraTargetPosition, distance, yaw, pitch, roll, upAxisIndex=2):
+        """ calls pybullet.computeViewMatrixFromYawPitchRoll """
+        return p.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=cameraTargetPosition,
+                                                   distance=distance,
+                                                   yaw=yaw,
+                                                   pitch=pitch,
+                                                   roll=roll,
+                                                   upAxisIndex=upAxisIndex)
+
 if __name__ == '__main__':
     pass
