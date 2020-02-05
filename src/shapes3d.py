@@ -24,7 +24,7 @@ class Shapes3D():
         image without a X11 context in Linux based systems. Warning EGL tends to render un-wanted
         artifacts such as the axis
     """
-    def __init__(self, gui=False, use_egl_plugin=False, env_dim=10):
+    def __init__(self, gui=False, use_egl_plugin=False, env_dim=10, walls=False):
 
         if env_dim <= 0:
             raise AttributeError("Ivalid env_dim passed to initialization of Shape3D env")
@@ -48,8 +48,10 @@ class Shapes3D():
 
         self.gui = p.GUI if gui else p.DIRECT
         self._env_dim = env_dim
+        self.walls = walls
 
         self.objects_id = []
+        self.walls_id = []
         self.physics_client = None
 
         self.plane_id = None
@@ -70,8 +72,43 @@ class Shapes3D():
                 p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
 
             # Create plane, the plan urdf has original dims of 200
-            self.plane_id = p.loadURDF('plane100.urdf', globalScaling=self._env_dim/200)
-            p.changeVisualShape(self.plane_id, -1, textureUniqueId=-1, rgbaColor=[0.6, 0.6, 0.6, 1])
+            self.plane_id = p.loadURDF('misc/plane100.urdf', globalScaling=self._env_dim/200)
+
+            if self.walls:
+                color = [0, 0, 0, 1]
+                a, b = 0, 0
+                for _ in range(4):
+                    c = b
+                    d = a ^ 1 # Flip a
+
+                    # print("(%i,%i)-(%i,%i) and wall is in (%i,%i)" % (a,b,c,d,(a^c),(b^d)))
+
+                    length = self._env_dim / 2
+                    height = 2.5
+                    width = 0.1
+                    dimensions = [
+                        (a^c)*length + (1-(a^c))*width,
+                        (1-(a^c))*length + (a^c)*width,
+                        height]
+                    position = [
+                        ((a+c)/2 - 0.5)*(self._env_dim + (1-(a^c))*width),
+                        ((b+d)/2 - 0.5)*(self._env_dim + (a^c)*width),
+                        height]
+
+                    visual_wall = p.createVisualShape(p.GEOM_BOX,
+                                                      halfExtents=dimensions)
+                    collision_wall = p.createCollisionShape(p.GEOM_BOX,
+                                                            halfExtents=dimensions)
+                    wall_id = p.createMultiBody(MASS,
+                                                collision_wall,
+                                                visual_wall,
+                                                basePosition=position)
+                    textureId = p.loadTexture("misc/pattern.jpg")
+                    p.changeVisualShape(wall_id, -1, textureUniqueId=textureId) 
+
+                    self.walls_id.append(wall_id)
+
+                    a, b = c, d
 
         # Remove objects
         while self.objects_id:
@@ -79,7 +116,7 @@ class Shapes3D():
             del self.objects_id[0]
 
         assert not self.objects_id
-        assert p.getNumBodies() == 1
+        #assert (p.getNumBodies() == 1 and not self.walls) or (self.walls and p.getNumBodies() == 1)
 
     def add_sphere(self, radius, color, position, orientation=None):
         """
@@ -243,7 +280,7 @@ class Shapes3D():
     def compute_render(self, width, height, intrinsic, extrinsic):
         """
             This functions creates the image of size width height in pixels from the
-            intrinsic and extrinsic matrix
+            intrinsic and extrinsic matrix and returns img, depth and segmentation map
         """
         _, _, img, depth, segmentation = p.getCameraImage(width,
                                                           height,
@@ -252,7 +289,8 @@ class Shapes3D():
                                                           lightDirection=[0, 0, 10],
                                                           lightDistance=100,
                                                           lightColor=[1, 1, 1],
-                                                          shadow=1)
+                                                          shadow=1,
+                                                          renderer=p.ER_BULLET_HARDWARE_OPENGL)
         return img, depth, segmentation
 
     def check_color_orientation(self, color, position, orientation):
