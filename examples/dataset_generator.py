@@ -99,86 +99,133 @@ def generate_dataset(destination_folder, num_total_imgs, num_envs, width, height
         for img_num in range(int(num_total_imgs/num_envs)):
             epsilon = 0.1
             range_dis = ENV_DIM / 2 - epsilon
-            distance = 1e-5
             while True:
-                x_cam = random.uniform(-range_dis, range_dis)
-                y_cam = random.uniform(-range_dis, range_dis)
-                z_cam = random.uniform(MIN_OBJ_DIM, MAX_OBJ_DIM)
-                position = [x_cam, y_cam, z_cam]
+                succ1, img1, depth1, _, pos, ori = get_cam_render(
+                    [0, 0, 0],
+                    [[-range_dis, range_dis], [-range_dis, range_dis], [MIN_OBJ_DIM, MAX_OBJ_DIM]],
+                    [0, 0, 0],
+                    [[0, 0], [0, 10], [0, 360]],
+                    width, height,
+                    intrinsic,
+                    env, objs)
 
-                roll = 0
-                pitch = random.uniform(0, 10)
-                yaw = random.uniform(0, 360)
-
-                # Check that the camera does not collide with any object
-                if not check_collisions(x_cam, y_cam, MIN_OBJ_DIM*2, objs):
+                if succ1 is False:
                     continue
 
-                # Render
-                extrinsic = env.computeViewMatrixFromYawPitchRoll(
-                    position, distance, yaw, pitch, roll)
-                img, _, seg = env.compute_render(width, height, intrinsic, extrinsic)
-
-                # Check if position renders at least two objects
-                seg = set(seg.reshape(1, -1).tolist()[0]) # Removing repeations
-                seg = seg.difference([-1]+env.walls_id) # Removing plane_id
-                if not (env.plane_id in seg and len(seg) > 2):
-                    continue
+                x_cam, y_cam, z_cam = pos
+                roll, pitch, yaw = ori
 
                 # Move the camera
                 for _ in range(20):
-                    dx = random.uniform(-MIN_OBJ_DIM, MIN_OBJ_DIM)
-                    dy = random.uniform(-MIN_OBJ_DIM, MIN_OBJ_DIM)
-                    dz = random.uniform(-MIN_OBJ_DIM, MIN_OBJ_DIM)
+                    succ2, img2, depth2, _, dpos2, dori2 = get_cam_render(
+                        [x_cam, y_cam, z_cam], [[-MIN_OBJ_DIM, MIN_OBJ_DIM]] * 3,
+                        [roll, pitch, yaw], [[0, 0], [-5, 5], [-5, 5]],
+                        width, height,
+                        intrinsic,
+                        env, objs)
 
-                    x_cam2 = x_cam + dx
-                    y_cam2 = y_cam + dy
-                    z_cam2 = z_cam + dz
-                    position = [x_cam2, y_cam2, z_cam2]
+                    if succ2 is True:
+                        dx2, dy2, dz2 = dpos2
+                        droll2, dpitch2, dyaw2 = dori2
 
+                        # Second movement
+                        for _ in range(20):
+                            succ3, img3, depth3, _, dpos3, dori3 = get_cam_render(
+                                [x_cam - dx2, y_cam - dy2, z_cam - dz2],
+                                [[-MIN_OBJ_DIM, MIN_OBJ_DIM]] * 3,
+                                [roll, pitch, yaw], [[0, 0], [-5, 5], [-5, 5]],
+                                width, height,
+                                intrinsic,
+                                env, objs)
+                            if succ3 is True:
+                                dx3, dy3, dz3 = dpos3
+                                droll3, dpitch3, dyaw3 = dori3
+                                break
 
-                    # Check position
-                    if not check_collisions(x_cam2, y_cam2, MIN_OBJ_DIM*2, objs):
-                        continue
+                        if succ2 and succ3:
+                            break
 
-                    # Check position
-                    if abs(x_cam2) > ENV_DIM/2 or abs(y_cam2) > ENV_DIM/2:
-                        continue
-
-                    droll = 0
-                    dpitch = random.uniform(-5, 5)
-                    dyaw = random.uniform(-5, 5)
-
-                    roll = roll + droll
-                    pitch = pitch + dpitch
-                    yaw = yaw + dyaw
-
-                    # Render
-                    extrinsic = env.computeViewMatrixFromYawPitchRoll(
-                        position, distance, yaw, pitch, roll)
-                    img2, _, seg2 = env.compute_render(width, height, intrinsic, extrinsic)
-
-                    # Check if position renders at least two objects
-                    seg2 = set(seg2.reshape(1, -1).tolist()[0]) # Removing repeations
-                    seg2 = seg2.difference([-1]+env.walls_id) # Removing plane_id
-                    if env.plane_id in seg2 and len(seg2) > 2:
-                        # save 6dof
-                        save_in_txt(os.path.join(destination_folder, str(env_num), "%i-6dof.txt" % img_num),
-                                    [dx, dy, dz, droll, dpitch, dyaw])
-                        break
-                break
+                if succ2 and succ3:
+                    break 
 
             # Save the picture
-            img = Image.fromarray(img[:, :, :3])
-            img_dest = os.path.join(destination_folder, str(env_num), str(img_num)+'a.jpg')
-            img.save(img_dest)
+            dest = os.path.join(destination_folder, str(env_num))
+            img_dest   = os.path.join(dest, '%s.jpg')
+            depth_dest = os.path.join(dest, '%s.npy')
+            dof_dest   = os.path.join(dest, "%s_6dof.txt")
 
+            # Imgs
+            img1 = Image.fromarray(img1[:, :, :3])
             img2 = Image.fromarray(img2[:, :, :3])
-            img2_dest = os.path.join(destination_folder, str(env_num), str(img_num)+'b.jpg')
-            img2.save(img2_dest)
+            img3 = Image.fromarray(img3[:, :, :3])
+            img2.save(img_dest % (str(img_num) + "_a"))
+            img1.save(img_dest % (str(img_num) + "_b"))
+            img3.save(img_dest % (str(img_num) + "_c"))
+
+            # Depths
+            depth2.dump(depth_dest % (str(img_num) + "_a"))
+            depth1.dump(depth_dest % (str(img_num) + "_b"))
+            depth3.dump(depth_dest % (str(img_num) + "_c"))
+
+            # Extrinsic
+            save_in_txt(dof_dest % (str(img_num) + "btoa"),
+                    [dx2, dy2, dz2, droll2, dpitch2, dyaw2])
+            save_in_txt(dof_dest % (str(img_num) + "btoc"),
+                    [dx3 - dx2, dy3 - dy2, dz3 - dz2, droll3, dpitch3, dyaw3])
 
         # Clean environment
         env.reset()
+
+def get_cam_render(pos0, pos_range, ori0, ori_range, width, height, intrinsic, env, objs):
+    """ Creates a render based on arguments and checks if img contains objs """
+    distance = 1e-5
+
+    img, depth, seg, dpos, dori = [None]*5
+    x_cam, y_cam, z_cam = pos0
+    x_rang, y_rang, z_rang = pos_range
+    roll, pitch, yaw = ori0
+    roll_rang, pitch_rang, yaw_rang = ori_range
+
+    dx = random.uniform(*x_rang)
+    dy = random.uniform(*y_rang)
+    dz = random.uniform(*z_rang)
+
+    x_cam2 = x_cam + dx
+    y_cam2 = y_cam + dy
+    z_cam2 = z_cam + dz
+    position = [x_cam2, y_cam2, z_cam2]
+
+    # Check position
+    if not check_collisions(x_cam2, y_cam2, MIN_OBJ_DIM*2, objs):
+        return False, img, depth, seg, dpos, dori
+
+    # Check position
+    if abs(x_cam2) > ENV_DIM/2 or abs(y_cam2) > ENV_DIM/2:
+        return False, img, depth, seg, dpos, dori
+
+    droll = random.uniform(*roll_rang)
+    dpitch = random.uniform(*pitch_rang)
+    dyaw = random.uniform(*yaw_rang)
+
+    roll2 = roll + droll
+    pitch2 = pitch + dpitch
+    yaw2 = yaw + dyaw
+
+    # Render
+    extrinsic = env.computeViewMatrixFromYawPitchRoll(
+        position, distance, yaw2, pitch2, roll2)
+    img, depth, seg = env.compute_render(width, height, intrinsic, extrinsic)
+
+    # Check if position renders at least two objects
+    seg = set(seg.reshape(1, -1).tolist()[0]) # Removing repeations
+    seg = seg.difference([-1]+env.walls_id) # Removing plane_id
+    if env.plane_id in seg and len(seg) > 3:
+        dpos = [dx, dy, dz]
+        dori = [droll, dpitch, dyaw]
+        return True, img, depth, seg, dpos, dori
+    else:
+        return False, img, depth, seg, dpos, dori
+
 
 def save_in_txt(destination, array):
     """ saves array elements in destination with spaces between values """
@@ -222,5 +269,5 @@ if __name__ == '__main__':
                         help="Width in pixels of the images")
 
     args = parser.parse_args()
-    
+
     generate_dataset(args.destination, args.num_total_imgs, args.num_envs, width=args.width, height=args.height)
