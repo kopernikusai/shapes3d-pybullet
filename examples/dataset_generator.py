@@ -19,11 +19,13 @@ TYPES = ['sphere', 'cube', 'cylinder', 'capsule']
 
 Obj = namedtuple("Object", "x y collision_radius")
 
-def generate_dataset(destination_folder, num_total_imgs, num_envs, width, height):
+def generate_dataset(destination_folder, num_total_imgs, num_total_envs, num_eval_envs, width, height):
     """
         Generates the images and saves them in destination. It will
         create imgs/envs per envs.
     """
+
+    train, val = [], []
 
     # Check if folder exists
     check_folder_or_create(destination_folder)
@@ -36,7 +38,7 @@ def generate_dataset(destination_folder, num_total_imgs, num_envs, width, height
     intrinsic = env.computeProjectionMatrixFOV(fov=FOV, aspect=1)
     save_in_txt(os.path.join(destination_folder, "intrinsic_matrix.txt"), intrinsic)
 
-    for env_num in range(0, num_envs):
+    for env_num in range(0, num_total_envs):
         objs = [] # List of positions and dimenssion of objects
 
         # Create folder if does not exits
@@ -96,7 +98,7 @@ def generate_dataset(destination_folder, num_total_imgs, num_envs, width, height
                 env.add_cylinder(collision_radius, dimension, color, position)
 
         # Choose a random pose and orientation for camera
-        for img_num in range(int(num_total_imgs/num_envs)):
+        for img_num in range(int(num_total_imgs/num_total_envs)):
             epsilon = 0.1
             range_dis = ENV_DIM / 2 - epsilon
             while True:
@@ -146,7 +148,7 @@ def generate_dataset(destination_folder, num_total_imgs, num_envs, width, height
                             break
 
                 if succ2 and succ3:
-                    break 
+                    break
 
             # Save the picture
             dest = os.path.join(destination_folder, str(env_num))
@@ -167,14 +169,29 @@ def generate_dataset(destination_folder, num_total_imgs, num_envs, width, height
             depth1.dump(depth_dest % (str(img_num) + "_b"))
             depth3.dump(depth_dest % (str(img_num) + "_c"))
 
+            if env_num < num_eval_envs:
+                val.append((str(env_num), str(img_num)))
+            else:
+                train.append((str(env_num), str(img_num)))
+
             # Extrinsic
-            save_in_txt(dof_dest % (str(img_num) + "btoa"),
+            save_in_txt(dof_dest % (str(img_num) + "_btoa"),
                     [dx2, dy2, dz2, droll2, dpitch2, dyaw2])
-            save_in_txt(dof_dest % (str(img_num) + "btoc"),
+            save_in_txt(dof_dest % (str(img_num) + "_btoc"),
                     [dx3 - dx2, dy3 - dy2, dz3 - dz2, droll3, dpitch3, dyaw3])
 
         # Clean environment
         env.reset()
+
+    # Save split values
+    train = random.sample(train, len(train))
+    val = random.sample(val, len(val))
+
+    train = [' '.join(x) for x in train]
+    val = [' '.join(x) for x in val]
+
+    save_in_txt(os.path.join(destination_folder, "train.txt"), train, '\n')
+    save_in_txt(os.path.join(destination_folder, "val.txt"), val, '\n')
 
 def get_cam_render(pos0, pos_range, ori0, ori_range, width, height, intrinsic, env, objs):
     """ Creates a render based on arguments and checks if img contains objs """
@@ -226,13 +243,12 @@ def get_cam_render(pos0, pos_range, ori0, ori_range, width, height, intrinsic, e
     else:
         return False, img, depth, seg, dpos, dori
 
-
-def save_in_txt(destination, array):
+def save_in_txt(destination, array, char=' '):
     """ saves array elements in destination with spaces between values """
     if os.path.exists(destination):
         os.remove(destination)
     with open(destination, 'w') as txt:
-        txt.write(' '.join([str(i) for i in array]))
+        txt.write(char.join([str(i) for i in array]))
 
 def check_collisions(x, y, collision_radius, objs):
     """
@@ -261,8 +277,10 @@ if __name__ == '__main__':
                         help="Folder destination for the dataset files")
     parser.add_argument('-i', '--num_total_imgs', type=int, default=100,
                         help="Number of images to generate in total")
-    parser.add_argument('-e', '--num_envs', type=int, default=10,
+    parser.add_argument('-e', '--num_total_envs', type=int, default=10,
                         help="Number of environments to generate")
+    parser.add_argument('--num_eval_envs', type=int, default=2,
+                        help="Number of environments used in evaluation")
     parser.add_argument('--width', type=int, default=300,
                         help="Width in pixels of the images")
     parser.add_argument('--height', type=int, default=300,
@@ -270,4 +288,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    generate_dataset(args.destination, args.num_total_imgs, args.num_envs, width=args.width, height=args.height)
+    generate_dataset(args.destination, args.num_total_imgs, args.num_total_envs, args.num_eval_envs, width=args.width, height=args.height)
